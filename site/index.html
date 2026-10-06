@@ -47,6 +47,9 @@ input[type=color]{width:100%;height:34px;padding:2px;background:var(--bg);border
     <input type="file" id="files" accept="image/*" multiple>
     <p class="hint">Fotografije se prikazuju u modelu ispod „Photos“, gde možeš da podesiš kameru dok se uglovi ne poklope. Ne šalju se nigde.</p>
     <div class="list" id="photos" style="margin-top:10px"></div>
+    <button class="btn" id="analyze" hidden>Analiziraj fotografije (Claude)</button>
+    <p class="hint" id="aStatus"></p>
+    <ul class="hint" id="aNotes" style="padding-left:18px;margin:6px 0 0"></ul>
   </fieldset>
 
   <fieldset>
@@ -133,7 +136,7 @@ document.addEventListener('click',function(e){
   if(d.add){S.openings.push({type:d.add,wall:'top',pos:60,width:d.add==='window'?48:32,sill:30,hinge:'left',swing:'in'});render();save()}
 });
 $('#addItem').onclick=function(){var k=$('#addType').value,t=TYPES[k];S.items.push({type:k,name:t[0],w:t[1],d:t[2],h:t[3],color:k==='rug'?'#e9dfcc':'#cfae86',wall:'center',pos:60,isNew:false});render();save()};
-$('#files').onchange=function(e){Array.prototype.forEach.call(e.target.files,function(f){S.photos.push({url:URL.createObjectURL(f),label:f.name.replace(/\.[^.]+$/,'')})});e.target.value='';render()};
+$('#files').onchange=function(e){Array.prototype.forEach.call(e.target.files,function(f){S.photos.push({url:URL.createObjectURL(f),file:f,label:f.name.replace(/\.[^.]+$/,''),at:null,h:60,yaw:0,pitch:0,fov:67})});e.target.value='';render()};
 
 function example(){
   $('#W').value=138;$('#L').value=126;$('#H').value=96;
@@ -172,7 +175,7 @@ function makeConfig(){
     if(o.type==='opening'){r.head=80;r.clear=24;r.label='Opening'}
     return r;
   });
-  var photos=S.photos.map(function(p){return {src:p.url,label:p.label,at:[W/2,L-6],h:60,yaw:0,pitch:0,roll:0,fov:67}});
+  var photos=S.photos.map(function(p){return {src:p.url,label:p.label,at:p.at||[W/2,L-6],h:p.h,yaw:p.yaw,pitch:p.pitch,roll:0,fov:p.fov}});
   var cfg={
     title:'Moja soba',subtitle:'Rasporedi nameštaj i proveri da li staje',
     storageKey:'room-site-'+Date.now(),accent:0x1f4fd8,fill:0xa6c0f6,view:'se',look:'colour',TEXTURES:'textures/',
@@ -196,6 +199,70 @@ $('#build').onclick=function(){
     $('#empty').hidden=false;$('#view').hidden=true;
     $('#empty').innerHTML='<div><strong>Ne mogu da učitam engine.</strong><br>Pokreni server iz korena repoa: <code>python3 -m http.server 8000</code> i otvori <code>/site/</code>.<br><small>'+err.message+'</small></div>';
   }).then(function(){btn.disabled=false;btn.textContent='Napravi 3D sobu'});
+};
+
+
+/* ---- Photos -> form, by asking Claude (artifact `sample` capability, images) ---- */
+var sampleFn=null;
+(function(){
+  if(!window.claude||!claude.use)return;
+  claude.use('sample').then(function(fn){
+    if(!fn)return;
+    return (fn.limits?fn.limits():Promise.resolve({})).then(function(l){
+      if(l&&l.images){sampleFn=fn;sampleFn._max=l.images.maxCount;$('#analyze').hidden=false}
+      else $('#aStatus').textContent='Ovaj prikaz ne može da šalje slike Claudeu, unesi mere ručno.';
+    });
+  }).catch(function(){});
+})();
+if(!window.claude)$('#aStatus').textContent='Automatska analiza radi samo kada je stranica otvorena na claude.ai.';
+
+var WALLNAMES=['top','right','bottom','left'];
+function prompt(n,types){
+  return 'You are measuring a room from '+n+' phone photo(s) of it, in order Photo 1..Photo '+n+'. Work like an interior surveyor.\n'+
+  'Method: read each photo by perspective first. Work out which wall faces the camera, which floor lines recede, what each doorway looks through to. Then scale from objects of known size: interior door 80 in high and 28-32 in wide, outlet centre 12-16 in off the floor, ceiling 96 in unless the photo says otherwise, mattress twin 38x75, full 54x75, queen 60x80, window sill 24-36 in, floorboard 2-5 in wide. All units are INCHES.\n'+
+  'Coordinates: choose as the TOP wall the one that faces the camera of Photo 1. The plan x runs left to right along the top wall, y runs from the top wall down to the bottom wall. Width W is the length of the top wall, length L is the distance top to bottom.\n'+
+  'Reply with ONLY one JSON object:\n'+
+  '{"room":{"W":number,"L":number,"H":number,"walls":"#rrggbb","floor":"#rrggbb","trim":"#rrggbb","boards":number (floorboard width in inches, 0 if none),"boardsDir":"x"|"y"},\n'+
+  ' "openings":[{"type":"door"|"window"|"opening","wall":"top"|"right"|"bottom"|"left","pos":number,"width":number,"sill":number (windows only),"hinge":"left"|"right" (doors),"swing":"in"|"out" (doors)}],\n'+
+  ' "items":[{"type":one of '+types+',"name":string,"w":number,"d":number,"h":number,"color":"#rrggbb","wall":"center"|"top"|"right"|"bottom"|"left","pos":number}],\n'+
+  ' "photos":[{"at":[x,y],"h":number,"yaw":number,"pitch":number,"fov":number}] (one per photo, in order),\n'+
+  ' "notes":[short strings: every estimate the user should verify]}\n'+
+  'Rules: pos is the opening or item centre measured along its wall, from the left end for top and bottom walls and from the top end for left and right walls. For an item, wall is the wall its BACK faces (center = free-standing). w is the width across the front, d the depth front to back, h the height; rugs have h 1. Door hinge is the jamb the door hangs on as seen from inside facing that wall. Colours: take the finish from a lit patch of the photo, away from corners and glare, and lift it toward the material\'s own colour (a sample in shade renders about twice as dark). Include only furniture that is actually in the photos; skip clutter. Photo camera: at = plan position (x,y) where the phone stood, h = lens height in inches (about 55-65), yaw = direction it looks (0 = at the top wall, 90 = at the right wall, 180 = bottom, 270 = left), pitch up positive, fov = vertical degrees (about 67 for a portrait 1x phone shot, 53 landscape, 106 or 90 for the 0.5x ultra-wide). Keep every number plausible for a real room.';
+}
+function clampN(v,a,b,d){v=parseFloat(v);return isFinite(v)?Math.min(b,Math.max(a,v)):d}
+function okHex(c,d){return /^#[0-9a-f]{6}$/i.test(c||'')?c:d}
+function okWall(w,any){return (any&&w==='center')||WALLNAMES.indexOf(w)>=0?w:(any?'center':'top')}
+function applyAnalysis(r){
+  var rm=r.room||{};
+  $('#W').value=clampN(rm.W,48,600,138);$('#L').value=clampN(rm.L,48,600,126);$('#H').value=clampN(rm.H,72,180,96);
+  $('#cWalls').value=okHex(rm.walls,'#dfe4d8');$('#cFloor').value=okHex(rm.floor,'#cfae86');$('#cTrim').value=okHex(rm.trim,'#f4f1ea');
+  $('#boards').value=clampN(rm.boards,0,12,0);$('#boardsDir').value=rm.boardsDir==='y'?'y':'x';
+  var W=+$('#W').value,L=+$('#L').value;
+  S.openings=(r.openings||[]).slice(0,12).map(function(o){
+    var wall=okWall(o.wall),run=(wall==='top'||wall==='bottom')?W:L;
+    return {type:['door','window','opening'].indexOf(o.type)>=0?o.type:'door',wall:wall,pos:clampN(o.pos,0,run,run/2),width:clampN(o.width,18,120,32),sill:clampN(o.sill,0,60,30),hinge:o.hinge==='right'?'right':'left',swing:o.swing==='out'?'out':'in'};
+  });
+  S.items=(r.items||[]).slice(0,20).filter(function(it){return TYPES[it.type]}).map(function(it){
+    var t=TYPES[it.type],wall=okWall(it.wall,true),run=(wall==='top'||wall==='bottom')?W:L;
+    return {type:it.type,name:String(it.name||t[0]).slice(0,40),w:clampN(it.w,6,200,t[1]),d:clampN(it.d,1,200,t[2]),h:clampN(it.h,1,120,t[3]),color:okHex(it.color,'#cfae86'),wall:wall,pos:clampN(it.pos,0,run,run/2),isNew:false};
+  });
+  (r.photos||[]).forEach(function(c,i){var p=S.photos[i];if(!p||!c)return;
+    var at=c.at;p.at=Array.isArray(at)&&at.length===2?[clampN(at[0],-60,W+60,W/2),clampN(at[1],-60,L+60,L-6)]:null;
+    p.h=clampN(c.h,20,100,60);p.yaw=clampN(c.yaw,-360,720,0);p.pitch=clampN(c.pitch,-60,60,0);p.fov=clampN(c.fov,30,120,67)});
+  $('#aNotes').innerHTML=(r.notes||[]).slice(0,10).map(function(n){return '<li>'+String(n).replace(/[<>&]/g,'')+'</li>'}).join('');
+  render();save();
+}
+$('#analyze').onclick=function(){
+  if(!sampleFn||!S.photos.length){$('#aStatus').textContent='Prvo dodaj bar jednu fotografiju.';return}
+  var photos=S.photos.slice(0,sampleFn._max||5),btn=$('#analyze');
+  btn.disabled=true;$('#aStatus').textContent='Claude analizira slike… može da traje oko minut.';$('#aNotes').innerHTML='';
+  sampleFn.json(prompt(photos.length,Object.keys(TYPES).join('|')),{images:photos.map(function(p){return p.file}),cache:false}).then(function(r){
+    applyAnalysis(r);$('#aStatus').textContent='Gotovo. Proveri mere ispod (to su procene), ispravi šta treba i klikni „Napravi 3D sobu“.';
+    $('#build').click();
+  }).catch(function(e){
+    var m={not_granted:'Nisi dozvolio Claudeu da koristi ovu stranicu.',rate_limited:'Previše poziva ili si potrošio limit. Probaj kasnije.',image_rejected:'Neka slika nije prihvaćena (tip ili veličina).',invalid_json:'Odgovor nije bio čitljiv. Probaj ponovo.'}[e&&e.code];
+    $('#aStatus').textContent=m||('Analiza nije uspela ('+((e&&e.code)||'greška')+'). Probaj ponovo ili unesi mere ručno.');
+  }).then(function(){btn.disabled=false});
 };
 
 var KEY='room-site-form';
