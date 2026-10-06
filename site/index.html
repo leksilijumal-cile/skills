@@ -39,7 +39,7 @@ input[type=color]{width:100%;height:34px;padding:2px;background:var(--bg);border
 :focus-visible{outline:2px solid var(--accent);outline-offset:2px}
 @media (max-width:860px){body{display:block;height:auto}aside{border-right:0}main{height:80vh}}
 </style>
-<header><h1>Soba iz fotografija</h1><span>mere u inčima · 1 ft = 12″</span></header>
+<header><h1>Soba iz fotografija</h1><span>mere u centimetrima</span></header>
 
 <aside>
   <fieldset>
@@ -55,9 +55,9 @@ input[type=color]{width:100%;height:34px;padding:2px;background:var(--bg);border
   <fieldset>
     <legend>2 · Soba</legend>
     <div class="row">
-      <label>Širina<input type="number" id="W" value="138" min="40"></label>
-      <label>Dužina<input type="number" id="L" value="126" min="40"></label>
-      <label>Visina<input type="number" id="H" value="96" min="70"></label>
+      <label>Širina<input type="number" id="W" value="350" min="100"></label>
+      <label>Dužina<input type="number" id="L" value="320" min="100"></label>
+      <label>Visina<input type="number" id="H" value="245" min="180"></label>
     </div>
     <div class="row">
       <label>Zidovi<input type="color" id="cWalls" value="#dfe4d8"></label>
@@ -65,7 +65,7 @@ input[type=color]{width:100%;height:34px;padding:2px;background:var(--bg);border
       <label>Lajsne<input type="color" id="cTrim" value="#f4f1ea"></label>
     </div>
     <div class="row">
-      <label>Širina dasaka poda<input type="number" id="boards" value="5" min="0"></label>
+      <label>Širina dasaka poda<input type="number" id="boards" value="12" min="0"></label>
       <label>Pravac dasaka<select id="boardsDir"><option value="x">po širini</option><option value="y">po dužini</option></select></label>
     </div>
     <p class="hint">„Gornji“ zid je onaj koji gleda prema tebi sa vrata. Širina ide levo–desno, dužina odozgo nadole.</p>
@@ -101,11 +101,13 @@ input[type=color]{width:100%;height:34px;padding:2px;background:var(--bg);border
 <script>
 (function(){
 var ENGINE = '../skills/design/room-from-photos/';
-var TYPES = {
+var IN=2.54,cm=function(v){return Math.round(v*IN)};
+var TYPES_IN = {
   bed:['Krevet',60,80,22],sofa:['Sofa',84,36,32],armchair:['Fotelja',30,32,32],dresser:['Komoda',48,19,32],nightstand:['Noćni stočić',18,16,24],
   desk:['Radni sto',48,24,29],bookshelf:['Polica za knjige',30,12,60],wardrobe:['Plakar',48,24,78],table:['Sto',48,30,30],
   rug:['Tepih',60,84,1],media:['TV komoda',60,16,24],floorplant:['Biljka',24,24,50]
 };
+var TYPES={};Object.keys(TYPES_IN).forEach(function(k){var t=TYPES_IN[k];TYPES[k]=[t[0],cm(t[1]),cm(t[2]),k==='rug'?3:cm(t[3])]});
 var WALLS = [['top','gore'],['right','desno'],['bottom','dole'],['left','levo']];
 var $ = function(s){return document.querySelector(s)};
 var S = {photos:[],openings:[],items:[]};   // photos keep object URLs, which can't be saved
@@ -118,9 +120,9 @@ function num(name, label, v){return '<label>'+label+'<input type="number" data-k
 function render(){
   $('#photos').innerHTML = S.photos.map(function(p,i){return '<div class="card" data-i="'+i+'"><button class="x" data-del="photos" title="Ukloni">×</button><div class="thumb"><img alt="" src="'+p.url+'"><label>Naziv<input type="text" data-k="label" value="'+p.label.replace(/"/g,'&quot;')+'"></label></div></div>'}).join('');
   $('#openings').innerHTML = S.openings.map(function(o,i){
-    return '<div class="card" data-i="'+i+'"><button class="x" data-del="openings" title="Ukloni">×</button><div class="row"><label>Vrsta<select data-k="type">'+opt([['door','Vrata'],['window','Prozor'],['opening','Otvor / plakar']],o.type)+'</select></label><label>Zid<select data-k="wall">'+opt(WALLS,o.wall)+'</select></label></div><div class="row">'+num('pos','Položaj',o.pos)+num('width','Širina',o.width)+(o.type==='window'?num('sill','Parapet',o.sill):'')+'</div>'+(o.type==='door'?'<div class="row"><label>Šarka<select data-k="hinge">'+opt([['left','leva'],['right','desna']],o.hinge)+'</select></label><label>Otvara se<select data-k="swing">'+opt([['in','unutra'],['out','napolje']],o.swing)+'</select></label></div>':'')+'</div>'}).join('');
+    return '<div class="card" data-i="'+i+'"><button class="x" data-del="openings" title="Ukloni">×</button><div class="row"><label>Vrsta<select data-k="type">'+opt([['door','Vrata'],['window','Prozor'],['opening','Otvor / plakar']],o.type)+'</select></label><label>Zid<select data-k="wall">'+opt(WALLS,o.wall)+'</select></label></div><div class="row">'+num('pos','Položaj (cm)',o.pos)+num('width','Širina (cm)',o.width)+(o.type==='window'?num('sill','Parapet (cm)',o.sill):'')+'</div>'+(o.type==='door'?'<div class="row"><label>Šarka<select data-k="hinge">'+opt([['left','leva'],['right','desna']],o.hinge)+'</select></label><label>Otvara se<select data-k="swing">'+opt([['in','unutra'],['out','napolje']],o.swing)+'</select></label></div>':'')+'</div>'}).join('');
   $('#items').innerHTML = S.items.map(function(it,i){
-    return '<div class="card" data-i="'+i+'"><button class="x" data-del="items" title="Ukloni">×</button><div class="row"><label>Naziv<input type="text" data-k="name" value="'+it.name.replace(/"/g,'&quot;')+'"></label><label>Boja<input type="color" data-k="color" value="'+it.color+'"></label></div><div class="row">'+num('w','Š',it.w)+num('d','D',it.d)+num('h','V',it.h)+'</div><div class="row"><label>Uz zid<select data-k="wall">'+opt([['center','sredina sobe']].concat(WALLS),it.wall)+'</select></label>'+(it.wall==='center'?'':num('pos','Položaj',it.pos))+'<label>Novo<input type="checkbox" data-k="isNew"'+(it.isNew?' checked':'')+'></label></div></div>'}).join('');
+    return '<div class="card" data-i="'+i+'"><button class="x" data-del="items" title="Ukloni">×</button><div class="row"><label>Naziv<input type="text" data-k="name" value="'+it.name.replace(/"/g,'&quot;')+'"></label><label>Boja<input type="color" data-k="color" value="'+it.color+'"></label></div><div class="row">'+num('w','Š (cm)',it.w)+num('d','D (cm)',it.d)+num('h','V (cm)',it.h)+'</div><div class="row"><label>Uz zid<select data-k="wall">'+opt([['center','sredina sobe']].concat(WALLS),it.wall)+'</select></label>'+(it.wall==='center'?'':num('pos','Položaj (cm)',it.pos))+'<label>Novo<input type="checkbox" data-k="isNew"'+(it.isNew?' checked':'')+'></label></div></div>'}).join('');
 }
 document.addEventListener('input',onEdit);document.addEventListener('change',onEdit);
 function onEdit(e){
@@ -133,15 +135,15 @@ function onEdit(e){
 document.addEventListener('click',function(e){
   var d=e.target.dataset;
   if(d.del){S[d.del].splice(+e.target.closest('.card').dataset.i,1);render();save()}
-  if(d.add){S.openings.push({type:d.add,wall:'top',pos:60,width:d.add==='window'?48:32,sill:30,hinge:'left',swing:'in'});render();save()}
+  if(d.add){S.openings.push({type:d.add,wall:'top',pos:150,width:d.add==='window'?120:80,sill:75,hinge:'left',swing:'in'});render();save()}
 });
-$('#addItem').onclick=function(){var k=$('#addType').value,t=TYPES[k];S.items.push({type:k,name:t[0],w:t[1],d:t[2],h:t[3],color:k==='rug'?'#e9dfcc':'#cfae86',wall:'center',pos:60,isNew:false});render();save()};
+$('#addItem').onclick=function(){var k=$('#addType').value,t=TYPES[k];S.items.push({type:k,name:t[0],w:t[1],d:t[2],h:t[3],color:k==='rug'?'#e9dfcc':'#cfae86',wall:'center',pos:150,isNew:false});render();save()};
 $('#files').onchange=function(e){Array.prototype.forEach.call(e.target.files,function(f){S.photos.push({url:URL.createObjectURL(f),file:f,label:f.name.replace(/\.[^.]+$/,''),at:null,h:60,yaw:0,pitch:0,fov:67})});e.target.value='';render()};
 
 function example(){
-  $('#W').value=138;$('#L').value=126;$('#H').value=96;
-  S.openings=[{type:'window',wall:'top',pos:69,width:48,sill:30,hinge:'left',swing:'in'},{type:'door',wall:'bottom',pos:118,width:32,sill:30,hinge:'left',swing:'in'},{type:'opening',wall:'left',pos:96,width:48,sill:30,hinge:'left',swing:'in'}];
-  S.items=[{type:'bed',name:'Novi krevet',w:41,d:80,h:22,color:'#f4f1ea',wall:'left',pos:60,isNew:true},{type:'dresser',name:'Komoda',w:48,d:19,h:32,color:'#8a6443',wall:'bottom',pos:60,isNew:false},{type:'desk',name:'Radni sto',w:42,d:22,h:29,color:'#f4f1ea',wall:'right',pos:40,isNew:false},{type:'rug',name:'Tepih',w:60,d:84,h:1,color:'#e9dfcc',wall:'center',pos:0,isNew:false}];
+  $('#W').value=350;$('#L').value=320;$('#H').value=245;$('#boards').value=12;
+  S.openings=[{type:'window',wall:'top',pos:175,width:120,sill:75,hinge:'left',swing:'in'},{type:'door',wall:'bottom',pos:300,width:80,sill:75,hinge:'left',swing:'in'},{type:'opening',wall:'left',pos:245,width:120,sill:75,hinge:'left',swing:'in'}];
+  S.items=[{type:'bed',name:'Novi krevet',w:105,d:203,h:56,color:'#f4f1ea',wall:'left',pos:150,isNew:true},{type:'dresser',name:'Komoda',w:122,d:48,h:81,color:'#8a6443',wall:'bottom',pos:150,isNew:false},{type:'desk',name:'Radni sto',w:107,d:56,h:74,color:'#f4f1ea',wall:'right',pos:100,isNew:false},{type:'rug',name:'Tepih',w:152,d:213,h:3,color:'#e9dfcc',wall:'center',pos:0,isNew:false}];
   render();
 }
 $('#example').onclick=function(){example();save()};
@@ -160,15 +162,17 @@ function place(it,W,L){
 }
 function openingC(o,W,L){return o.wall==='top'?[o.pos,0]:o.wall==='bottom'?[o.pos,L]:o.wall==='left'?[0,o.pos]:[W,o.pos]}
 function makeConfig(){
-  var W=+$('#W').value,L=+$('#L').value,H=+$('#H').value;
+  var W=+$('#W').value/IN,L=+$('#L').value/IN,H=+$('#H').value/IN;
   var items={},placeMap={};
-  S.items.forEach(function(it,i){
+  S.items.forEach(function(it0,i){
+    var it={type:it0.type,name:it0.name,color:it0.color,wall:it0.wall,isNew:it0.isNew,w:it0.w/IN,d:it0.d/IN,h:it0.h/IN,pos:it0.pos/IN};
     var id=it.type+(i+1),spec={name:it.name,type:it.type,w:it.w,d:it.d,h:it.h,color:hex(it.color),color2:0xe9dfcc};
     if(it.type==='bed')spec.hb=36;
     if(it.isNew)spec.new=true;
     items[id]=spec;placeMap[id]=place(it,W,L);
   });
-  var openings=S.openings.map(function(o){
+  var openings=S.openings.map(function(o0){
+    var o={type:o0.type,wall:o0.wall,pos:o0.pos/IN,width:o0.width/IN,sill:o0.sill/IN,hinge:o0.hinge,swing:o0.swing};
     var r={type:o.type,c:openingC(o,W,L),width:o.width};
     if(o.type==='window'){r.sill=o.sill;r.head=80}
     if(o.type==='door'){r.hinge=o.hinge;r.swing=o.swing}
@@ -181,7 +185,7 @@ function makeConfig(){
     storageKey:'room-site-'+Date.now(),accent:0x1f4fd8,fill:0xa6c0f6,view:'se',look:'colour',TEXTURES:'textures/',
     PALETTE:{paint:[['Warm white',0xf4f1ea],['Pale sage',0xdfe4d8],['Blush',0xe8cfc4],['Dusty blue',0x9db2c4],['Charcoal',0x3e3f3d]],wood:[['Pale oak',0xd8bb93],['Light oak',0xcfae86],['Walnut',0x8a6443]],fabric:[['Linen',0xe9dfcc],['Dusty blue',0x9db2c4],['Moss',0x7f8c63],['Blush',0xe8cfc4],['Charcoal',0x3e3f3d]]},
     LOOKS:[{name:'As entered',colors:{}}],
-    ROOM:{outline:[[0,0],[W,0],[W,L],[0,L]],height:H,wall:5,walls:hex($('#cWalls').value),floor:hex($('#cFloor').value),trim:hex($('#cTrim').value),boards:+$('#boards').value||0,boardsDir:$('#boardsDir').value,openings:openings,fixed:[],verify:['All sizes entered by hand']},
+    ROOM:{outline:[[0,0],[W,0],[W,L],[0,L]],height:H,wall:5,walls:hex($('#cWalls').value),floor:hex($('#cFloor').value),trim:hex($('#cTrim').value),boards:(+$('#boards').value||0)/IN,boardsDir:$('#boardsDir').value,openings:openings,fixed:[],verify:['All sizes entered by hand']},
     ITEMS:items,LAYOUTS:[{name:'As entered',note:'The room as you described it. Drag pieces to try other layouts.',place:placeMap}],PHOTOS:photos
   };
   return 'var CONFIG = '+JSON.stringify(cfg,null,1)+';\n';
@@ -234,17 +238,17 @@ function okHex(c,d){return /^#[0-9a-f]{6}$/i.test(c||'')?c:d}
 function okWall(w,any){return (any&&w==='center')||WALLNAMES.indexOf(w)>=0?w:(any?'center':'top')}
 function applyAnalysis(r){
   var rm=r.room||{};
-  $('#W').value=clampN(rm.W,48,600,138);$('#L').value=clampN(rm.L,48,600,126);$('#H').value=clampN(rm.H,72,180,96);
+  $('#W').value=cm(clampN(rm.W,48,600,138));$('#L').value=cm(clampN(rm.L,48,600,126));$('#H').value=cm(clampN(rm.H,72,180,96));
   $('#cWalls').value=okHex(rm.walls,'#dfe4d8');$('#cFloor').value=okHex(rm.floor,'#cfae86');$('#cTrim').value=okHex(rm.trim,'#f4f1ea');
-  $('#boards').value=clampN(rm.boards,0,12,0);$('#boardsDir').value=rm.boardsDir==='y'?'y':'x';
-  var W=+$('#W').value,L=+$('#L').value;
+  $('#boards').value=cm(clampN(rm.boards,0,12,0));$('#boardsDir').value=rm.boardsDir==='y'?'y':'x';
+  var W=+$('#W').value/IN,L=+$('#L').value/IN;
   S.openings=(r.openings||[]).slice(0,12).map(function(o){
     var wall=okWall(o.wall),run=(wall==='top'||wall==='bottom')?W:L;
-    return {type:['door','window','opening'].indexOf(o.type)>=0?o.type:'door',wall:wall,pos:clampN(o.pos,0,run,run/2),width:clampN(o.width,18,120,32),sill:clampN(o.sill,0,60,30),hinge:o.hinge==='right'?'right':'left',swing:o.swing==='out'?'out':'in'};
+    return {type:['door','window','opening'].indexOf(o.type)>=0?o.type:'door',wall:wall,pos:cm(clampN(o.pos,0,run,run/2)),width:cm(clampN(o.width,18,120,32)),sill:cm(clampN(o.sill,0,60,30)),hinge:o.hinge==='right'?'right':'left',swing:o.swing==='out'?'out':'in'};
   });
   S.items=(r.items||[]).slice(0,20).filter(function(it){return TYPES[it.type]}).map(function(it){
     var t=TYPES[it.type],wall=okWall(it.wall,true),run=(wall==='top'||wall==='bottom')?W:L;
-    return {type:it.type,name:String(it.name||t[0]).slice(0,40),w:clampN(it.w,6,200,t[1]),d:clampN(it.d,1,200,t[2]),h:clampN(it.h,1,120,t[3]),color:okHex(it.color,'#cfae86'),wall:wall,pos:clampN(it.pos,0,run,run/2),isNew:false};
+    return {type:it.type,name:String(it.name||t[0]).slice(0,40),w:cm(clampN(it.w,6,200,t[1]/IN)),d:cm(clampN(it.d,1,200,t[2]/IN)),h:cm(clampN(it.h,1,120,t[3]/IN)),color:okHex(it.color,'#cfae86'),wall:wall,pos:cm(clampN(it.pos,0,run,run/2)),isNew:false};
   });
   (r.photos||[]).forEach(function(c,i){var p=S.photos[i];if(!p||!c)return;
     var at=c.at;p.at=Array.isArray(at)&&at.length===2?[clampN(at[0],-60,W+60,W/2),clampN(at[1],-60,L+60,L-6)]:null;
@@ -265,7 +269,7 @@ $('#analyze').onclick=function(){
   }).then(function(){btn.disabled=false});
 };
 
-var KEY='room-site-form';
+var KEY='room-site-form-cm';
 function save(){try{localStorage.setItem(KEY,JSON.stringify({o:S.openings,i:S.items,f:['W','L','H','cWalls','cFloor','cTrim','boards','boardsDir'].map(function(k){return $('#'+k).value})}))}catch(e){}}
 document.querySelectorAll('aside input[id],aside select[id]').forEach(function(e){e.addEventListener('input',save)});
 var saved=null;try{saved=JSON.parse(localStorage.getItem(KEY))}catch(e){}
